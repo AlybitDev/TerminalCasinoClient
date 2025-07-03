@@ -1,13 +1,19 @@
 import os
-import sys
 import requests
+import sys
+import json
 
 usernameExists = False
 usernameWarning = False
 username = None
 
 joinedServer = False
-server = None
+serverURL = None
+
+version = None
+versionJSON = None
+
+uuid = None
 
 def clear():
     os.system('cls||clear')
@@ -41,32 +47,55 @@ def usernameShell():
     shell()
 
 def joinServer():
-    global usernameExists, username, joinedServer, server
+    global uuid, usernameExists, username, joinedServer, serverURL, versionJSON
 
     if usernameExists == False:
         print("You don't have a username, to set one, type 'username'.")
         shell()
 
     while joinedServer == False:
-        server = input("What is the domain name or IP of the server with the port? (ex. example.com or 192.168.123.132:8375) ")
-        print("Joined server.")
-        joinedServer = True
+        print("What is the domain name or IP of the server with the port? (ex. http://example.com/ or http://192.168.123.132:8375/)")
+        serverURL = input("> ")
+        versionInJSON = versionJSON['version']
+        joinObj = {'name': username, 'version': versionInJSON}
+        joinServerPOST = requests.post(serverURL + "join", json = joinObj).json()
+        if 'error' in joinServerPOST:
+            print(joinServerPOST['error'])
+            serverURL = None
+        else:
+            print(joinServerPOST['response'])
+            uuid = joinServerPOST['uuid']
+            joinedServer = True
 
-    game()
+    shell()
 
-def game():
-    pass
+def joinRoom():
+    global serverURL
+
+def createRoom():
+    global uuid, serverURL
+
+    print("What game do you want to play in the room?\nGames: Roulette(1)")
+    gameToPlay = input("> ")
+    createRoomObj = {'uuid': uuid, 'game': gameToPlay}
+    createRoomPOST = requests.post(serverURL + "createroom", json=createRoomObj).json()
+
 
 def shell():
-    global usernameExists, username
+    global usernameExists, username, version, versionJSON
 
     inShell = True
 
     versionFile = open("version.txt")
     version = versionFile.read()
+    versionFile.close()
 
     commandsFile = open("commands.txt")
     commands = commandsFile.read()
+    commandsFile.close()
+
+    with open('version.json', 'r') as versionJSONFile:
+        versionJSON = json.load(versionJSONFile)
 
     while inShell == True:
         command = input(">>> ")
@@ -94,6 +123,20 @@ def shell():
                 print(username)
         elif command == "server":
             joinServer()
+        elif command == "clear":
+            clear()
+        elif command == "room":
+            if joinedServer == False:
+                print("You need to join a server before you can create or join a room.")
+            else:
+                print("Do you wanna join a room or create one? (1) Create (2) Join")
+                roomQuestion = input("> ")
+                if roomQuestion == "2":
+                    print("What is the room code?")
+                    roomCode = input("> ")
+                    joinRoom()
+                elif roomQuestion == "1":
+                    pass
         else:
             print("error: didn't recognize that command")
 
