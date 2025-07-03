@@ -1,0 +1,7 @@
+This is a list of all commands.
+help : Returns a list of all commands and what they do.
+exit : Closes TerminalCasino.
+username : Use this command to set your username.
+username reset : Use this command to reset your username.
+echo username : Returns your username.
+server : Use this command to join a server.
