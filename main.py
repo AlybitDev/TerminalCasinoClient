@@ -78,7 +78,7 @@ def shell():
             print(commands)
         elif command == "username":
             if usernameExists == True:
-                print("You already have a username. To reset your username, type 'username reset'.")
+                print("You already have a username set, it is " + username + ". To reset your username, type 'username reset'.")
             else:
                 usernameShell()
         elif command == "username reset":
