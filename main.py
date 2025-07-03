@@ -1,5 +1,4 @@
 import os
-import sys
 import requests
 
 usernameExists = False
@@ -60,42 +59,40 @@ def game():
 def shell():
     global usernameExists, username
 
-    inShell = True
-
     versionFile = open("version.txt")
     version = versionFile.read()
+    versionFile.close()
 
     commandsFile = open("commands.txt")
     commands = commandsFile.read()
+    commandsFile.close()
 
-    while inShell == True:
+    while True:
         command = input(">>> ")
-        if command == "exit":
-            sys.exit("Exited")
-        elif command == "version":
-            print(version)
-        elif command == "help":
-            print(commands)
+        if command == "exit": break
+        elif command == "version": print(version)
+        elif command == "help": print(commands)
         elif command == "username":
             if usernameExists == True:
-                print("You already have a username set, it is " + username + ". To reset your username, type 'username reset'.")
-            else:
-                usernameShell()
+                print(f"You already have a username set, it is {username}. To reset your username, type 'username reset'.")
+                continue
+            usernameShell()
+            
         elif command == "username reset":
             if usernameExists == False:
                 print("You don't have a username set. To set one, type 'username'.")
-            else:
-                usernameExists = False
-                usernameShell()
+                continue
+            usernameExists = False
+            usernameShell()
+            
         elif command == "echo username":
             if username == None:
                 print("You need to set your username before using this command. To set your username, type 'username'.")
-            else:
-                print(username)
-        elif command == "server":
-            joinServer()
-        else:
-            print("error: didn't recognize that command")
+                continue
+            print(username)
+            
+        elif command == "server": joinServer()
+        else: print("error: didn't recognize that command")
 
 clear()
 print("Welcome to TerminalCasino!\nType 'help' to get a list of the commands.")
