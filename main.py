@@ -2,6 +2,8 @@ import os
 import requests
 import sys
 import json
+import threading
+from websockets.sync.client import connect
 
 usernameExists = False
 usernameWarning = False
@@ -54,13 +56,13 @@ def joinServer():
         realServer = False
 
         while realServer == False:
-            print("What is the domain name or IP of the server with the port? (ex. http://example.com/ or http://192.168.123.132:8375/)")
+            print("What is the domain name or IP of the server with the port? (ex. example.com/ or 192.168.123.132:8375/)")
             serverURL = input("> ")
             versionInJSON = versionJSON['version']
             joinObj = {'name': username, 'version': versionInJSON}
 
             try:
-                joinServerPOST = requests.post(serverURL + "join", json=joinObj).json()
+                joinServerPOST = requests.post("http://" + serverURL + "join", json=joinObj).json()
             except requests.exceptions.RequestException:
                 print("Connection failed. Please give a valid domain name or IP.")
                 continue
@@ -82,7 +84,7 @@ def joinRoom(room):
     global uuid, serverURL, roomCode, inRoom
 
     joinRoomObj = {'uuid': uuid, 'room': room}
-    joinRoomPOST = requests.post(serverURL + "joinroom", json=joinRoomObj).json()
+    joinRoomPOST = requests.post("http://" + serverURL + "joinroom", json=joinRoomObj).json()
 
     if "error" in joinRoomPOST:
         print(joinRoomPOST["error"])
@@ -116,26 +118,49 @@ def createRoom():
             print("You need to type a numeral.")
 
     createRoomObj = {'uuid': uuid, 'game': int(gameToPlay), 'money': int(money)}
-    createRoomPOST = requests.post(serverURL + "createroom", json=createRoomObj).json()
+    createRoomPOST = requests.post("http://" + serverURL + "createroom", json=createRoomObj).json()
 
     roomCode = createRoomPOST["roomcode"]
     print(createRoomPOST["response"] + " The room code is " + roomCode + ".")
     inRoom = True
 
 def roomPlayers():
-    global roomCode, uuid, serverURL
+    global uuid, serverURL
 
-    roomPlayersObj = {'uuid': uuid, 'room': roomCode}
-    roomPlayersPOST = requests.post(serverURL + "roomplayers" , json=roomPlayersObj).json()
+    roomPlayersObj = {'uuid': uuid}
+    roomPlayersPOST = requests.post("http://" + serverURL + "roomplayers" , json=roomPlayersObj).json()
+
     if 'error' in roomPlayersPOST:
         print(roomPlayersPOST['error'])
     else:
         totalPlayers = int(roomPlayersPOST['players'])
-        print("Players in this room:")
+        print("Players in this room(" + str(totalPlayers) + "):")
 
         for key in range(1, totalPlayers + 1):
             key = str(key)
             print(roomPlayersPOST[key])
+
+def leaveRoom():
+    global uuid, inRoom, roomCode
+
+    leaveRoomObj = {'uuid': uuid}
+    leaveRoomPOST = requests.post("http://" + serverURL + "leaveroom", json=leaveRoomObj).json()
+
+    if 'error' in leaveRoomPOST:
+        print(leaveRoomPOST['error'])
+    else:
+        print(leaveRoomPOST['response'])
+        inRoom = False
+        roomCode = None
+
+def startGame():
+    global uuid, serverURL
+
+    with connect("ws://" + serverURL + "game") as ws:
+        while True:
+            ws.send(uuid)
+            data = ws.recv()
+            print(data)
 
 def shell():
     global usernameExists, username, version, versionJSON, serverURL, inRoom, roomCode
@@ -195,22 +220,22 @@ def shell():
                 print(serverURL)
         elif command == "clear":
             clear()
-        elif command == "room":
+        elif command == "room join":
             if inServer == False:
-                print("You need to join a server before you can create or join a room.")
+                print("You need to join a server before you can join a room.")
             elif inRoom:
                 print("You already are in a room.")
             else:
-                print("Do you wanna join a room or create one? (1) Create (2) Join")
-                roomQuestion = input("> ")
-                if roomQuestion == "2":
-                    print("What is the room code?")
-                    room = input("> ")
-                    joinRoom(room)
-                elif roomQuestion == "1":
-                    createRoom()
-                else:
-                    print("You need to type a number.")
+                print("What is the room code?")
+                room = input("> ")
+                joinRoom(room)
+        elif command == "room create":
+            if inServer == False:
+                print("You need to join a server before you can create a room.")
+            elif inRoom:
+                print("You already are in a room.")
+            else:
+                createRoom()
         elif command == "room code":
             if inRoom:
                 print(roomCode)
@@ -219,6 +244,11 @@ def shell():
         elif command == "room players":
             if inRoom:
                 roomPlayers()
+            else:
+                print("You need to be in a room to use this command.")
+        elif command == "room leave":
+            if inRoom:
+                leaveRoom()
             else:
                 print("You need to be in a room to use this command.")
         else:
