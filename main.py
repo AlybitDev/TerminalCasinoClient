@@ -7,13 +7,16 @@ usernameExists = False
 usernameWarning = False
 username = None
 
-joinedServer = False
+inServer = False
 serverURL = None
 
 version = None
 versionJSON = None
 
 uuid = None
+
+roomCode = None
+inRoom = False
 
 def clear():
     os.system('cls||clear')
@@ -35,7 +38,7 @@ def usernameShell():
                 usernameWarning = False
                 usernameExists = True
             elif username == usernameRequest:
-                print("This already was your password.")
+                print("This already was your username.")
                 usernameWarning = False
                 usernameExists = True
             else:
@@ -44,45 +47,98 @@ def usernameShell():
                 usernameWarning = False
                 usernameExists = True
 
-    shell()
-
 def joinServer():
-    global uuid, usernameExists, username, joinedServer, serverURL, versionJSON
+    global uuid, usernameExists, username, inServer, serverURL, versionJSON
 
-    if usernameExists == False:
-        print("You don't have a username, to set one, type 'username'.")
-        shell()
+    while inServer == False:
+        realServer = False
 
-    while joinedServer == False:
-        print("What is the domain name or IP of the server with the port? (ex. http://example.com/ or http://192.168.123.132:8375/)")
-        serverURL = input("> ")
-        versionInJSON = versionJSON['version']
-        joinObj = {'name': username, 'version': versionInJSON}
-        joinServerPOST = requests.post(serverURL + "join", json = joinObj).json()
+        while realServer == False:
+            print("What is the domain name or IP of the server with the port? (ex. http://example.com/ or http://192.168.123.132:8375/)")
+            serverURL = input("> ")
+            versionInJSON = versionJSON['version']
+            joinObj = {'name': username, 'version': versionInJSON}
+
+            try:
+                joinServerPOST = requests.post(serverURL + "join", json=joinObj).json()
+            except requests.exceptions.RequestException:
+                print("Connection failed. Please give a valid domain name or IP.")
+                continue
+            except json.JSONDecodeError:
+                print("This server exists, but isn't running TerminalCasinoServer. Please give a valid domain name or IP.")
+                continue
+
+            realServer = True
+
         if 'error' in joinServerPOST:
             print(joinServerPOST['error'])
             serverURL = None
         else:
             print(joinServerPOST['response'])
             uuid = joinServerPOST['uuid']
-            joinedServer = True
+            inServer = True
 
-    shell()
+def joinRoom(room):
+    global uuid, serverURL, roomCode, inRoom
 
-def joinRoom():
-    global serverURL
+    joinRoomObj = {'uuid': uuid, 'room': room}
+    joinRoomPOST = requests.post(serverURL + "joinroom", json=joinRoomObj).json()
+
+    if "error" in joinRoomPOST:
+        print(joinRoomPOST["error"])
+    else:
+        print(joinRoomPOST["response"])
+        roomCode = room
+        inRoom = True
 
 def createRoom():
-    global uuid, serverURL
+    global uuid, serverURL, inRoom, roomCode
 
-    print("What game do you want to play in the room?\nGames: Roulette(1)")
-    gameToPlay = input("> ")
-    createRoomObj = {'uuid': uuid, 'game': gameToPlay}
+    gameChosen = False
+
+    while gameChosen == False:
+
+        print("What game do you want to play in the room?\nGames: Roulette(1)")
+        gameToPlay = input("> ")
+        if gameToPlay == "1":
+            gameChosen = True
+        else:
+            print("You need to type a number.")
+
+    moneyChosen = False
+
+    while moneyChosen == False:
+        print("What do you want the starting money to be? (Only numbers)")
+        money = input("> ")
+        if money.isdigit():
+            moneyChosen = True
+        else:
+            print("You need to type a numeral.")
+
+    createRoomObj = {'uuid': uuid, 'game': int(gameToPlay), 'money': int(money)}
     createRoomPOST = requests.post(serverURL + "createroom", json=createRoomObj).json()
 
+    roomCode = createRoomPOST["roomcode"]
+    print(createRoomPOST["response"] + " The room code is " + roomCode + ".")
+    inRoom = True
+
+def roomPlayers():
+    global roomCode, uuid, serverURL
+
+    roomPlayersObj = {'uuid': uuid, 'room': roomCode}
+    roomPlayersPOST = requests.post(serverURL + "roomplayers" , json=roomPlayersObj).json()
+    if 'error' in roomPlayersPOST:
+        print(roomPlayersPOST['error'])
+    else:
+        totalPlayers = int(roomPlayersPOST['players'])
+        print("Players in this room:")
+
+        for key in range(1, totalPlayers + 1):
+            key = str(key)
+            print(roomPlayersPOST[key])
 
 def shell():
-    global usernameExists, username, version, versionJSON
+    global usernameExists, username, version, versionJSON, serverURL, inRoom, roomCode
 
     inShell = True
 
@@ -106,13 +162,17 @@ def shell():
         elif command == "help":
             print(commands)
         elif command == "username":
-            if usernameExists == True:
+            if inServer:
+                print("You are in a server so you can't chance your username.")
+            elif usernameExists == True:
                 print("You already have a username set, it is " + username + ". To reset your username, type 'username reset'.")
             else:
                 usernameShell()
         elif command == "username reset":
             if usernameExists == False:
                 print("You don't have a username set. To set one, type 'username'.")
+            elif inServer:
+                print("You are in a server so you can't chance your username.")
             else:
                 usernameExists = False
                 usernameShell()
@@ -122,21 +182,45 @@ def shell():
             else:
                 print(username)
         elif command == "server":
-            joinServer()
+            if usernameExists == False:
+                print("You don't have a username, to set one, type 'username'.")
+            elif inServer == False:
+                joinServer()
+            else:
+                print("You already joined a server, it's URL is " + serverURL + ".")
+        elif command == "echo server":
+            if inServer == False:
+                print("You need to be in a server to use this command.")
+            else:
+                print(serverURL)
         elif command == "clear":
             clear()
         elif command == "room":
-            if joinedServer == False:
+            if inServer == False:
                 print("You need to join a server before you can create or join a room.")
+            elif inRoom:
+                print("You already are in a room.")
             else:
                 print("Do you wanna join a room or create one? (1) Create (2) Join")
                 roomQuestion = input("> ")
                 if roomQuestion == "2":
                     print("What is the room code?")
-                    roomCode = input("> ")
-                    joinRoom()
+                    room = input("> ")
+                    joinRoom(room)
                 elif roomQuestion == "1":
-                    pass
+                    createRoom()
+                else:
+                    print("You need to type a number.")
+        elif command == "room code":
+            if inRoom:
+                print(roomCode)
+            else:
+                print("You need to be in a room to use this command.")
+        elif command == "room players":
+            if inRoom:
+                roomPlayers()
+            else:
+                print("You need to be in a room to use this command.")
         else:
             print("error: didn't recognize that command")
 
